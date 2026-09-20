@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#ffffff</color>
+    <color name="widget_background">#FFFFFF</color>
+    <color name="widget_text">#111111</color>
+    <color name="widget_next_time">#1565C0</color>
+    <color name="widget_label">#999999</color>
+    <color name="widget_divider">#DDDDDD</color>
+</resources>
