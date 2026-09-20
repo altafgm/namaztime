@@ -9,7 +9,7 @@ any service we operate or control.
 ## What the app uses
 
 - **Approximate / precise location (optional).** Used on the device to calculate prayer
-  times and the direction of the Qibla for your area. The coordinates are stored only in
+  times for your area. The coordinates are stored only in
   the app's private storage. The app has no server component, so it never uploads your
   location. If the app cannot obtain a fresh fix it keeps using the last location it
   resolved, or the built-in default city.
