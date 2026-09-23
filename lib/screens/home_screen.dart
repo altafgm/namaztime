@@ -9,6 +9,7 @@ import '../models/location_data.dart';
 import '../models/prayer_schedule.dart';
 import '../providers/prayer_provider.dart';
 import '../providers/settings_provider.dart';
+import '../screens/qibla_screen.dart';
 import '../screens/settings_screen.dart';
 import '../services/location_service.dart';
 import '../services/widget_service.dart';
@@ -71,20 +72,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // ─── startup: permission → location → API ───────────────────────────────
 
   Future<void> _startup() async {
-    // Paint from whatever we already have immediately: use the persisted
-    // (or default) location plus its cached schedule so the cards show without
-    // waiting on GPS. Then refine with a live location fix in the background.
-    _startupWithPinnedLocation();
+    // Paint from whatever we already have immediately: the persisted location
+    // plus its cached schedule, so the cards show without waiting on GPS. On a
+    // first run nothing is persisted yet, so skip straight to the live path
+    // rather than painting the hardcoded default as the user's location. The
+    // pinned load is awaited so it can never race the live one.
+    final pinned = await _storedLocation();
+    if (pinned != null) {
+      await _startupWithPinnedLocation(pinned);
+    }
     await _startupWithLiveLocation();
   }
 
   /// Fast path — no GPS and no permission prompt. Loads from prefs + cache.
-  Future<void> _startupWithPinnedLocation() async {
+  Future<void> _startupWithPinnedLocation(LocationData pinned) async {
     final settingsProvider = context.read<SettingsProvider>();
     final prayerProvider = context.read<PrayerProvider>();
-    // Pinned coordinates plus the city they were geocoded to; the default city is
-    // only used on a fresh install, before anything has ever been resolved.
-    final pinned = await _storedLocation() ?? _defaultLocation;
     if (!mounted) return;
     final notificationsEnabled = settingsProvider.notificationsEnabled;
 
@@ -226,15 +229,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   /// Location used when no fix can be obtained. Whatever was resolved before is
   /// kept, because a refresh that cannot get a GPS fix must not silently move the
-  /// user — and every prayer time with them — to the default city. Only a fresh
-  /// install, which has nothing stored yet, falls back to the default, and it is
-  /// seeded so the background workers always have coordinates to work with.
+  /// user — and every prayer time with them — to the default city. On a first
+  /// run there is nothing stored; the default is shown only for this session so
+  /// the screen is never blank, and it is deliberately *not* persisted, because
+  /// doing so would turn the default into a fake "last known location" that every
+  /// later launch would trust.
   Future<LocationData> _fallbackLocation(String reason) async {
     final stored = await _storedLocation();
     final location = stored ?? _defaultLocation;
-    if (stored == null) {
-      await _persistBgLocation(_defaultLocation);
-    }
     if (mounted) {
       setState(() {
         _currentLat = location.latitude;
@@ -392,14 +394,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         title: const Text('Salah Time'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
+            icon: const Icon(Icons.explore_outlined),
+            tooltip: 'Qibla Direction',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => QiblaScreen(
+                  latitude: _currentLat,
+                  longitude: _currentLng,
+                ),
+              ),
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.my_location),
             onPressed: _loading ? null : _onRefreshTapped,
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
           ),
         ],
       ),

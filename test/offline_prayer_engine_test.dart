@@ -104,4 +104,41 @@ void main() {
     );
     expect(schedule.prayers.first.time.year, 2040);
   });
+
+  test('keeps canonical order when Maghrib falls after midnight', () {
+    // Put solar noon at ~22:00 local so sunset (and therefore Maghrib) lands
+    // after midnight. Maghrib used to be re-anchored to the start of the day,
+    // which sorted it before Fajr and made the widget show the wrong namaz.
+    final timezoneHours = DateTime(2026, 9, 19).timeZoneOffset.inMinutes / 60.0;
+    var longitude = (timezoneHours - 10) * 15;
+    longitude = ((longitude + 180) % 360) - 180;
+    final highLatitude = LocationData(
+      latitude: 70,
+      longitude: longitude,
+      city: 'High latitude',
+      country: '',
+    );
+
+    final schedule = engine.calculate(
+      date: DateTime(2026, 9, 19),
+      location: highLatitude,
+    );
+
+    expect(schedule.prayers.map((prayer) => prayer.name).toList(), [
+      'Fajr',
+      'Dhuhr',
+      'Asr',
+      'Maghrib',
+      'Isha',
+    ]);
+    for (var i = 1; i < schedule.prayers.length; i++) {
+      expect(
+        schedule.prayers[i].time.isAfter(schedule.prayers[i - 1].time),
+        isTrue,
+        reason:
+            '${schedule.prayers[i].name} must follow '
+            '${schedule.prayers[i - 1].name}',
+      );
+    }
+  });
 }

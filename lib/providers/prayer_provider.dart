@@ -18,6 +18,7 @@ class PrayerProvider with ChangeNotifier {
   LocationData? _currentLocation;
   bool _isLoading = false;
   String? _error;
+  int _loadToken = 0;
 
   PrayerSchedule? get currentSchedule => _currentSchedule;
   PrayerSchedule? get tomorrowSchedule => _tomorrowSchedule;
@@ -30,6 +31,12 @@ class PrayerProvider with ChangeNotifier {
     required DateTime date,
     bool notificationsEnabled = true,
   }) async {
+    // Each call supersedes the previous one. Location loads can overlap (the
+    // cached startup load, the live GPS load, a manual refresh), and without
+    // this guard a slower earlier request could finish last and replace the UI
+    // with stale data — e.g. the hardcoded default city after GPS had already
+    // resolved the real location.
+    final token = ++_loadToken;
     _isLoading = true;
     _error = null;
     _currentLocation = location;
@@ -42,6 +49,7 @@ class PrayerProvider with ChangeNotifier {
 
       final today =
           await _repository.getPrayerSchedule(location: location, date: date);
+      if (token != _loadToken) return;
       _currentSchedule = today;
 
       // Paint today's cards right away and refresh the widget; don't wait for
@@ -51,6 +59,7 @@ class PrayerProvider with ChangeNotifier {
       if (_currentSchedule != null) {
         await WidgetService.updateWidget(_currentSchedule!, _tomorrowSchedule);
       }
+      if (token != _loadToken) return;
 
       // Fetch tomorrow concurrently in the background. Notifications are owned
       // by the native worker; the plugin init only requests permission and can
@@ -58,16 +67,20 @@ class PrayerProvider with ChangeNotifier {
       if (notificationsEnabled) {
         unawaited(_notificationService.init().catchError((_) {}));
       }
-      _tomorrowSchedule = await _repository.getPrayerSchedule(
+      final tomorrowSchedule = await _repository.getPrayerSchedule(
         location: location,
         date: tomorrow,
       );
+      if (token != _loadToken) return;
+      _tomorrowSchedule = tomorrowSchedule;
       await WidgetService.updateWidget(_currentSchedule!, _tomorrowSchedule);
     } catch (e) {
-      _error = e.toString();
+      if (token == _loadToken) _error = e.toString();
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (token == _loadToken) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 

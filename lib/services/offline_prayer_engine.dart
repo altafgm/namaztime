@@ -56,14 +56,17 @@ class OfflinePrayerEngine {
         ? _atLocalMinutes(day, solarNoon * 60 + 4 * 60)
         : _atLocalMinutes(day, solarNoon * 60 + asrHourAngle * 4);
 
+    // Maghrib is sunset plus two minutes. Adding to the full [sunset] instant
+    // (rather than resigning its time-of-day to midnight) keeps the correct
+    // calendar day when sunset falls after midnight, so the five prayers always
+    // stay in canonical order: Fajr, Dhuhr, Asr, Maghrib, Isha.
+    final maghrib = sunset.add(const Duration(minutes: 2));
+
     final prayers = [
       PrayerTime(name: 'Fajr', time: fajr),
       PrayerTime(name: 'Dhuhr', time: _atLocalMinutes(day, solarNoon * 60)),
       PrayerTime(name: 'Asr', time: asr),
-      PrayerTime(
-        name: 'Maghrib',
-        time: _atLocalMinutes(day, _minutes(sunset) + 2),
-      ),
+      PrayerTime(name: 'Maghrib', time: maghrib),
       PrayerTime(name: 'Isha', time: isha),
     ];
 
@@ -144,9 +147,6 @@ class OfflinePrayerEngine {
       date.day,
     ).add(Duration(minutes: wholeMinutes));
   }
-
-  double _minutes(DateTime time) =>
-      time.hour * 60.0 + time.minute + time.second / 60.0;
 
   double _julianDay(int year, int month, int day) {
     var adjustedYear = year;
